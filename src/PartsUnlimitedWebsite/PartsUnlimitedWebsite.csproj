@@ -1,22 +1,26 @@
 ﻿<Project Sdk="Microsoft.NET.Sdk.Web">
 
   <PropertyGroup>
-    <TargetFramework>netcoreapp2.2</TargetFramework>
-    <PreserveCompilationContext>true</PreserveCompilationContext>
+    <TargetFramework>net8.0</TargetFramework>
     <AssemblyName>PartsUnlimitedWebsite</AssemblyName>
-    <AssetTargetFallback>$(AssetTargetFallback);portable-net45+win8+wp8+wpa81;</AssetTargetFallback>
     <UserSecretsId>aspnet-PartsUnlimitedWebsite-88B5164A-732F-489C-B25E-AC693ECEB5FB</UserSecretsId>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <Nullable>enable</Nullable>
   </PropertyGroup>
 
-  <ItemGroup>	
-	<PackageReference Include="Microsoft.AspNetCore.All" />	
-	<PackageReference Include="Microsoft.DotNet.InternalAbstractions" Version="1.0.500-preview2-1-003177" />	
-
- </ItemGroup>
-
   <ItemGroup>
-    <DotNetCliToolReference Include="Microsoft.VisualStudio.Web.CodeGeneration.Tools" Version="2.0.4" />
+    <PackageReference Include="Microsoft.AspNetCore.Identity.EntityFrameworkCore" Version="8.0.0" />
+    <PackageReference Include="Microsoft.EntityFrameworkCore.SqlServer" Version="8.0.0" />
+    <PackageReference Include="Microsoft.EntityFrameworkCore.InMemory" Version="8.0.0" />
+    <PackageReference Include="Microsoft.ApplicationInsights.AspNetCore" Version="2.21.0" />
+    <PackageReference Include="Microsoft.AspNetCore.Authentication.OpenIdConnect" Version="8.0.0" />
+    <PackageReference Include="Microsoft.AspNetCore.Authentication.Facebook" Version="8.0.0" />
+    <PackageReference Include="Microsoft.AspNetCore.Authentication.Google" Version="8.0.0" />
+    <PackageReference Include="Microsoft.AspNetCore.Authentication.Twitter" Version="8.0.0" />
+    <PackageReference Include="Microsoft.AspNetCore.Authentication.MicrosoftAccount" Version="8.0.0" />
   </ItemGroup>
+
+
 
   <ItemGroup>
     <ProjectReference Include="..\PartsUnlimited.Models\PartsUnlimited.Models.csproj" />
@@ -34,11 +38,10 @@
     </None>
   </ItemGroup>
 
-  <Target Name="PrecompileScript" BeforeTargets="BeforeBuild">
-    <Exec Command="npm install --python=python2.7" />
-    <Exec Command="npm config set python python2.7" />
-    <Exec Command="npm install -g grunt-cli" />
-    <Exec Command="grunt" />
-  </Target>
+  <!-- NPM build target temporarily disabled for testing -->
+  <!-- <Target Name="PrecompileScript" BeforeTargets="BeforeBuild">
+    <Exec Command="npm install" />
+    <Exec Command="npm run build" />
+  </Target> -->
 
 </Project>

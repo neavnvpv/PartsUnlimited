@@ -21,7 +21,9 @@ namespace PartsUnlimited.WebJobs.UpdateProductInventory
             var config = builder.Build();
             var connectionString = config["Data:DefaultConnection:ConnectionString"];
 
-            using (var context = new PartsUnlimitedContext(connectionString))
+            var optionsBuilder = new DbContextOptionsBuilder<PartsUnlimitedContext>();
+            optionsBuilder.UseSqlServer(connectionString);
+            using (var context = new PartsUnlimitedContext(optionsBuilder.Options))
             {
                 var dbProductList = await context.Products.ToListAsync();
                 foreach (var queueProduct in message.ProductList)

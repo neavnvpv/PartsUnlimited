@@ -1,33 +1,51 @@
 ﻿// Copyright (c) Microsoft. All rights reserved.
 // Licensed under the MIT license. See LICENSE file in the project root for full license information.
 
+using FluentAssertions;
 using NSubstitute;
 using PartsUnlimited.Models;
-using System.Collections.Generic;
-using System.Linq;
-using System.Threading.Tasks;
 using Xunit;
 
-namespace PartsUnlimited.Search
+namespace PartsUnlimited.Search;
+
+public class StringContainsProductSearcherTests
 {
-    public class StringContainsProductSearcherTests
+    private static readonly string[] ProductTitles = ["word in the middle", "something", "something outside", "inside where outside"];
+
+    [Fact]
+    public async Task SearchSuccess()
     {
-        private static readonly IEnumerable<string> s_productTitles = new[] { "word in the middle", "something", "something outside", "inside where outside" };
+        // Arrange
+        var productList = ProductTitles.Select(title => new Product { Title = title }).ToList();
+        var context = Substitute.For<IPartsUnlimitedContext>();
+        var productDbSet = productList.ToDbSet();
+        context.Products.Returns(productDbSet);
+        var searcher = new StringContainsProductSearch(context);
 
-        [Fact]
-        public async Task SearchSuccess()
-        {
-            var productList = s_productTitles.Select(o => new Product { Title = o }).ToList();
-            var context = Substitute.For<IPartsUnlimitedContext>();
-            var productDbSet = productList.ToDbSet();
+        // Act
+        var results = await searcher.Search("thing");
 
-            context.Products.Returns(productDbSet);
+        // Assert
+        results.Select(p => p.Title).Should().BeEquivalentTo(["something", "something outside"]);
+    }
 
-            var searcher = new StringContainsProductSearch(context);
+    [Theory]
+    [InlineData("", 4)]
+    [InlineData("outside", 2)]
+    [InlineData("nonexistent", 0)]
+    public async Task Search_ReturnsExpectedCount(string searchTerm, int expectedCount)
+    {
+        // Arrange
+        var productList = ProductTitles.Select(title => new Product { Title = title }).ToList();
+        var context = Substitute.For<IPartsUnlimitedContext>();
+        var productDbSet = productList.ToDbSet();
+        context.Products.Returns(productDbSet);
+        var searcher = new StringContainsProductSearch(context);
 
-            var thing = await searcher.Search("thing");
+        // Act
+        var results = await searcher.Search(searchTerm);
 
-            Assert.Equal(new string[] { "something", "something outside" }, thing.Select(o => o.Title));
-        }
+        // Assert
+        results.Should().HaveCount(expectedCount);
     }
 }
