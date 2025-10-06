@@ -1,102 +1,81 @@
 ﻿// Copyright (c) Microsoft. All rights reserved.
 // Licensed under the MIT license. See LICENSE file in the project root for full license information.
 
-using FluentAssertions;
 using Microsoft.Extensions.Configuration;
 using NSubstitute;
 using PartsUnlimited.WebsiteConfiguration;
+using System.Collections.Generic;
+using System.Linq;
 using Xunit;
 
-namespace PartsUnlimited.Utils;
-
-public class ContentDeliveryNetworkConfigurationTests
+namespace PartsUnlimited.Utils
 {
-    [Theory]
-    [InlineData("some/test/path")]
-    [InlineData("https://cdn.example.com/images")]
-    public void Images_ShouldReturnConfiguredValue(string imageCdn)
+    public class ContentDeliveryNetworkConfigurationTests
     {
-        // Arrange
-        var config = Substitute.For<IConfiguration>();
-        config["images"].Returns(imageCdn);
-
-        // Act
-        var cdnConfig = new ContentDeliveryNetworkConfiguration(config);
-
-        // Assert
-        cdnConfig.Images.Should().Be(imageCdn);
-    }
-
-    [Fact]
-    public void Images_ShouldReturnNull_WhenNotConfigured()
-    {
-        // Arrange
-        var config = Substitute.For<IConfiguration>();
-        config["images"].Returns((string?)null);
-
-        // Act
-        var cdnConfig = new ContentDeliveryNetworkConfiguration(config);
-
-        // Assert
-        cdnConfig.Images.Should().BeNull();
-    }
-
-    [Fact]
-    public void Scripts_ShouldParseMultiplePaths()
-    {
-        // Arrange
-        var values = new[]
+        [Fact]
+        public void ImageContent()
         {
-            new ConfigPathHelper { Name = "item1", Path = "path1 path3  path4" },
-            new ConfigPathHelper { Name = "item2", Path = "path2" },
-        };
-        var config = Substitute.For<IConfiguration>();
-        var scriptsConfigSection = CreateConfigSection(values);
-        config.GetSection("Scripts").Returns(scriptsConfigSection);
+            const string ImageCdn = "some/test/path";
 
-        // Act
-        var cdnConfig = new ContentDeliveryNetworkConfiguration(config);
+            var config = Substitute.For<IConfiguration>();
+            config["images"].Returns(ImageCdn);
 
-        // Assert
-        cdnConfig.Scripts.Should().HaveCount(2);
-        cdnConfig.Scripts["item1"].Should().BeEquivalentTo(["path1", "path3", "path4"]);
-        cdnConfig.Scripts["item2"].Should().BeEquivalentTo(["path2"]);
-    }
+            var cdnConfig = new ContentDeliveryNetworkConfiguration(config);
 
-    [Fact]
-    public void Scripts_ShouldHandleEmptyConfiguration()
-    {
-        // Arrange
-        var config = Substitute.For<IConfiguration>();
-        var emptySection = Substitute.For<IConfigurationSection>();
-        emptySection.GetChildren().Returns([]);
-        config.GetSection("Scripts").Returns(emptySection);
+            Assert.Equal(ImageCdn, cdnConfig.Images);
+        }
 
-        // Act
-        var cdnConfig = new ContentDeliveryNetworkConfiguration(config);
-
-        // Assert
-        cdnConfig.Scripts.Should().BeEmpty();
-    }
-
-    private static IConfigurationSection CreateConfigSection(IEnumerable<ConfigPathHelper> values)
-    {
-        var section = Substitute.For<IConfigurationSection>();
-        var sections = values.Select(value =>
+        [Fact]
+        public void ImageContentNull()
         {
-            var childSection = Substitute.For<IConfigurationSection>();
-            childSection.Key.Returns(value.Name);
-            childSection.Value.Returns(value.Path);
-            return childSection;
-        }).ToList();
+            var config = Substitute.For<IConfiguration>();
+            config["images"].Returns((string)null);
+            var cdnConfig = new ContentDeliveryNetworkConfiguration(config);
 
-        section.GetChildren().Returns(sections);
-        return section;
-    }
+            Assert.Null(cdnConfig.Images);
+        }
 
-    private record ConfigPathHelper
-    {
-        public required string Path { get; init; }
-        public required string Name { get; init; }
+        [Fact]
+        public void ScriptStylesParse()
+        {
+            var values = new[]
+            {
+                new ConfigPathHelper{ Name="item1", Path="path1 path3  path4"},
+                new ConfigPathHelper{ Name="item2", Path="path2"},
+            };
+
+            var config = Substitute.For<IConfiguration>();
+            var scriptsConfigSection = CreateConfigSection(values);
+            config.GetSection("Scripts").Returns(scriptsConfigSection);
+
+            var cdnConfig = new ContentDeliveryNetworkConfiguration(config);
+
+            Assert.Equal(2, cdnConfig.Scripts.Count);
+            Assert.Equal(new[] { "path1", "path3", "path4" }, cdnConfig.Scripts["item1"]);
+            Assert.Equal(new[] { "path2" }, cdnConfig.Scripts["item2"]);
+        }
+
+        private IConfigurationSection CreateConfigSection(IEnumerable<ConfigPathHelper> values)
+        {
+            var section = Substitute.For<IConfigurationSection>();
+            var sections = new List<IConfigurationSection>();
+
+            foreach (var value in values)
+            {
+                var emptySection = Substitute.For<IConfigurationSection>();
+                emptySection.Key.Returns(value.Name);
+                emptySection.Value.Returns(value.Path);
+                sections.Add(emptySection);
+            }
+
+            section.GetChildren().Returns(sections);
+            return section;
+        }
+
+        private class ConfigPathHelper
+        {
+            public string Path { get; set; }
+            public string Name { get; set; }
+        }
     }
 }

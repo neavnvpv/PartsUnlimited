@@ -29,7 +29,7 @@ namespace PartsUnlimited.Models
                 builder.AddUserSecrets("AdminRole");
 
                 // This will push telemetry data through Application Insights pipeline faster, allowing you to view results immediately.
-                // builder.AddApplicationInsightsSettings(developerMode: true); // Deprecated in modern .NET
+                builder.AddApplicationInsightsSettings(developerMode: true);
             }
 
             builder.AddEnvironmentVariables();

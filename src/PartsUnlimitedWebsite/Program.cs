@@ -1,43 +1,47 @@
-﻿using PartsUnlimited.Models;
+﻿using System;
+using Microsoft.AspNetCore.Hosting;
+using Microsoft.AspNetCore;
+using Microsoft.Extensions.Configuration;
+using Microsoft.Extensions.DependencyInjection;
+using Microsoft.Extensions.Logging;
+using PartsUnlimited.Models;
 
-namespace PartsUnlimited;
-
-public class Program
+namespace PartsUnlimited
 {
-    public static async Task Main(string[] args)
+    public class Program
     {
-        var builder = WebApplication.CreateBuilder(args);
-        
-        // Clear default configuration and add custom config
-        builder.Configuration.Sources.Clear();
-        builder.Configuration.AddJsonFile("config.json", optional: true);
-        builder.Configuration.AddEnvironmentVariables();
-        builder.Configuration.AddCommandLine(args);
-        
-        // Configure services using Startup class
-        var startup = new Startup(builder.Configuration);
-        startup.ConfigureServices(builder.Services);
-        
-        var app = builder.Build();
-        
-        // Seed database
-        using (var scope = app.Services.CreateScope())
+        public static void Main(string[] args)
         {
-            var services = scope.ServiceProvider;
-            try
+            var host = BuildWebHost(args);
+
+            using (var scope = host.Services.CreateScope())
             {
-                await SampleData.InitializePartsUnlimitedDatabaseAsync(services);
+                var services = scope.ServiceProvider;
+
+                try
+                {
+                    //Populates the PartsUnlimited sample data
+                    SampleData.InitializePartsUnlimitedDatabaseAsync(services).Wait();
+                }
+                catch (Exception ex)
+                {
+                    var logger = services.GetRequiredService<ILogger<Program>>();
+                    logger.LogError(ex, "An error occurred seeding the DB.");
+                }
             }
-            catch (Exception ex)
-            {
-                var logger = services.GetRequiredService<ILogger<Program>>();
-                logger.LogError(ex, "An error occurred seeding the DB.");
-            }
+
+            host.Run();
         }
-        
-        // Configure pipeline using Startup class
-        startup.Configure(app, app.Environment);
-        
-        await app.RunAsync();
+
+        public static IWebHost BuildWebHost(string[] args) =>
+            WebHost.CreateDefaultBuilder(args)
+                .UseStartup<Startup>()
+                .ConfigureAppConfiguration((hostContext, config) =>
+                {
+                    // delete all default configuration providers
+                    config.Sources.Clear();
+                    config.AddJsonFile("config.json", optional: true);
+                })
+                .Build();
     }
 }

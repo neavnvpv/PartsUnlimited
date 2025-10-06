@@ -1,6 +1,11 @@
+// Copyright (c) Microsoft. All rights reserved.
+// Licensed under the MIT license. See LICENSE file in the project root for full license information.
+
+using Microsoft.AspNetCore.Builder;
 using Microsoft.AspNetCore.Identity;
-using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Caching.Memory;
+using Microsoft.Extensions.Configuration;
+using Microsoft.Extensions.DependencyInjection;
 using PartsUnlimited.Areas.Admin;
 using PartsUnlimited.Models;
 using PartsUnlimited.Queries;
@@ -9,6 +14,7 @@ using PartsUnlimited.Search;
 using PartsUnlimited.Security;
 using PartsUnlimited.Telemetry;
 using PartsUnlimited.WebsiteConfiguration;
+using System;
 
 namespace PartsUnlimited
 {
@@ -25,18 +31,18 @@ namespace PartsUnlimited
         public void ConfigureServices(IServiceCollection services)
         {
             service = services;
-            var sqlConnectionString = Configuration.GetConnectionString("DefaultConnectionString");
+            //If this type is present - we're on mono
+            var runningOnMono = Type.GetType("Mono.Runtime") != null;
+            var sqlConnectionString = Configuration[ConfigurationPath.Combine("ConnectionStrings", "DefaultConnectionString")];
             var useInMemoryDatabase = string.IsNullOrWhiteSpace(sqlConnectionString);
 
+            if (useInMemoryDatabase || runningOnMono)
+            {
+                sqlConnectionString = "";
+            }
+
             // Add EF services to the services container
-            if (useInMemoryDatabase)
-            {
-                services.AddDbContext<PartsUnlimitedContext>(options => options.UseInMemoryDatabase("PartsUnlimited"));
-            }
-            else
-            {
-                services.AddDbContext<PartsUnlimitedContext>(options => options.UseSqlServer(sqlConnectionString));
-            }
+            services.AddDbContext<PartsUnlimitedContext>();
 
 
             // Add Identity services to the services container
@@ -68,33 +74,38 @@ namespace PartsUnlimited
             services.AddScoped<IWebsiteOptions>(p =>
             {
                 var telemetry = p.GetRequiredService<ITelemetryProvider>();
+
                 return new ConfigurationWebsiteOptions(Configuration.GetSection("WebsiteOptions"), telemetry);
             });
 
             services.AddScoped<IApplicationInsightsSettings>(p =>
             {
-                return new ConfigurationApplicationInsightsSettings(Configuration.GetSection("Keys:ApplicationInsights"));
+                return new ConfigurationApplicationInsightsSettings(Configuration.GetSection(ConfigurationPath.Combine("Keys", "ApplicationInsights")));
             });
 
             services.AddApplicationInsightsTelemetry(Configuration);
 
-            // Associate IPartsUnlimitedContext
-            services.AddScoped<IPartsUnlimitedContext>(provider => provider.GetRequiredService<PartsUnlimitedContext>());
+            // Associate IPartsUnlimitedContext and PartsUnlimitedContext with context
+            services.AddTransient<IPartsUnlimitedContext>(x => new PartsUnlimitedContext(sqlConnectionString));
+            services.AddTransient(x => new PartsUnlimitedContext(sqlConnectionString));
 
             // We need access to these settings in a static extension method, so DI does not help us :(
             ContentDeliveryNetworkExtensions.Configuration = new ContentDeliveryNetworkConfiguration(Configuration.GetSection("CDN"));
 
             // Add MVC services to the services container
-            services.AddControllersWithViews();
-            services.AddRazorPages();
+            services.AddMvc();
 
-            // Add session related services
+            //Add InMemoryCache
+            services.AddSingleton<IMemoryCache, MemoryCache>();
+
+            // Add session related services.
+            //services.AddCaching();
             services.AddSession();
         }
 
         private void SetupRecommendationService(IServiceCollection services)
         {
-            var azureMlConfig = new AzureMLFrequentlyBoughtTogetherConfig(Configuration.GetSection("Keys:AzureMLFrequentlyBoughtTogether"));
+            var azureMlConfig = new AzureMLFrequentlyBoughtTogetherConfig(Configuration.GetSection(ConfigurationPath.Combine("Keys", "AzureMLFrequentlyBoughtTogether")));
 
             // If keys are not available for Azure ML recommendation service, register an empty recommendation engine
             if (string.IsNullOrEmpty(azureMlConfig.AccountKey) || string.IsNullOrEmpty(azureMlConfig.ModelName))
@@ -111,63 +122,63 @@ namespace PartsUnlimited
 
         //This method is invoked when ASPNETCORE_ENVIRONMENT is 'Development' or is not defined
         //The allowed values are Development,Staging and Production
-        public void ConfigureDevelopment(IApplicationBuilder app, IWebHostEnvironment env)
+        public void ConfigureDevelopment(IApplicationBuilder app)
         {
             //Display custom error page in production when error occurs
             //During development use the ErrorPage middleware to display error information in the browser
             app.UseDeveloperExceptionPage();
+            app.UseDatabaseErrorPage();
 
-            Configure(app, env);
+            Configure(app);
         }
 
         //This method is invoked when ASPNETCORE_ENVIRONMENT is 'Staging'
         //The allowed values are Development,Staging and Production
-        public void ConfigureStaging(IApplicationBuilder app, IWebHostEnvironment env)
+        public void ConfigureStaging(IApplicationBuilder app)
         {
             app.UseExceptionHandler("/Home/Error");
-            Configure(app, env);
+            Configure(app);
         }
 
         //This method is invoked when ASPNETCORE_ENVIRONMENT is 'Production'
         //The allowed values are Development,Staging and Production
-        public void ConfigureProduction(IApplicationBuilder app, IWebHostEnvironment env)
+        public void ConfigureProduction(IApplicationBuilder app)
         {
             app.UseExceptionHandler("/Home/Error");
-            Configure(app, env);
+            Configure(app);
         }
 
-        public void Configure(IApplicationBuilder app, IWebHostEnvironment env)
+        public void Configure(IApplicationBuilder app)
         {
-            if (env.IsDevelopment())
-            {
-                app.UseDeveloperExceptionPage();
-            }
-            else
-            {
-                app.UseExceptionHandler("/Home/Error");
-                app.UseHsts();
-            }
-
-            app.UseHttpsRedirection();
-            app.UseStaticFiles();
-            app.UseRouting();
+            // Configure Session.
             app.UseSession();
+
+            // Add static files to the request pipeline
+            app.UseStaticFiles();
+
+            // Add cookie-based authentication to the request pipeline
             app.UseAuthentication();
-            app.UseAuthorization();
 
             AppBuilderLoginProviderExtensions.AddLoginProviders(service, new ConfigurationLoginProviders(Configuration.GetSection("Authentication")));
+            // Add login providers (Microsoft/AzureAD/Google/etc).  This must be done after `app.UseIdentity()`
+            //app.AddLoginProviders( new ConfigurationLoginProviders(Configuration.GetSection("Authentication")));
 
-            app.UseEndpoints(endpoints =>
+            // Add MVC to the request pipeline
+            app.UseMvc(routes =>
             {
-                endpoints.MapControllerRoute(
+                routes.MapRoute(
                     name: "areaRoute",
-                    pattern: "{area:exists}/{controller=Home}/{action=Index}/{id?}");
+                    template: "{area:exists}/{controller}/{action}",
+                    defaults: new { action = "Index" });
 
-                endpoints.MapControllerRoute(
+                routes.MapRoute(
                     name: "default",
-                    pattern: "{controller=Home}/{action=Index}/{id?}");
+                    template: "{controller}/{action}/{id?}",
+                    defaults: new { controller = "Home", action = "Index" });
 
-                endpoints.MapRazorPages();
+                routes.MapRoute(
+                    name: "api",
+                    template: "{controller}/{id?}");
             });
         }
     }

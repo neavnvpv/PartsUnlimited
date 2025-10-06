@@ -8,8 +8,11 @@ namespace PartsUnlimited.Models
 {
     public class PartsUnlimitedContext : IdentityDbContext<ApplicationUser>, IPartsUnlimitedContext
     {
-        public PartsUnlimitedContext(DbContextOptions<PartsUnlimitedContext> options) : base(options)
+        private readonly string _connectionString;
+
+        public PartsUnlimitedContext(string connectionString)
         {
+            _connectionString = connectionString;
         }
 
         public DbSet<Product> Products { get; set; }
@@ -33,6 +36,17 @@ namespace PartsUnlimited.Models
             base.OnModelCreating(builder);
         }
 
+        protected override void OnConfiguring(DbContextOptionsBuilder optionsBuilder)
+        {
 
+            if (!string.IsNullOrWhiteSpace(_connectionString))
+            {
+                optionsBuilder.UseSqlServer(_connectionString);
+            }else
+            {
+                System.Data.SqlClient.SqlConnectionStringBuilder builder = new System.Data.SqlClient.SqlConnectionStringBuilder(_connectionString);
+                optionsBuilder.UseInMemoryDatabase("Test");
+            }
+        }
     }
 }

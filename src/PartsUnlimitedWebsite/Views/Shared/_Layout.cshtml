@@ -1,6 +1,6 @@
 ﻿@using System.Globalization
 @using PartsUnlimited
-@using System.Runtime.InteropServices
+@using Microsoft.DotNet.InternalAbstractions
 
 <!DOCTYPE html>
 <html lang="en">
@@ -141,7 +141,7 @@
                 </div>
                 <div class="row">
                     <div class="text-center">
-                        Site powered by @RuntimeInformation.OSDescription
+                        Site powered by @RuntimeEnvironment.OperatingSystem @RuntimeEnvironment.OperatingSystemVersion
                     </div>
                 </div>
             </div>

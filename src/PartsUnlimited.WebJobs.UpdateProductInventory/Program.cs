@@ -2,21 +2,18 @@
 // Licensed under the MIT license. See LICENSE file in the project root for full license information.
 
 using System;
-using System.Threading.Tasks;
 using Microsoft.Azure.WebJobs;
 using Microsoft.Extensions.Configuration;
-using Microsoft.Extensions.DependencyInjection;
-using Microsoft.Extensions.Hosting;
-using Microsoft.Extensions.Logging;
+using Microsoft.Extensions.Configuration.Json;
 
 namespace PartsUnlimited.WebJobs.UpdateProductInventory
 {
     public class Program
     {
-        public static async Task<int> Main(string[] args)
+        public int Main(string[] args)
         {
             var builder = new ConfigurationBuilder();
-            builder.AddJsonFile("config.json", optional: true);
+            builder.Add(new JsonConfigurationSource { Path = "config.json" });
             var config = builder.Build();
             var webjobsConnectionString = config["Data:AzureWebJobsStorage:ConnectionString"];
             var dbConnectionString = config["Data:DefaultConnection:ConnectionString"];
@@ -33,26 +30,10 @@ namespace PartsUnlimited.WebJobs.UpdateProductInventory
                 return 10;
             }
 
-            var host = new HostBuilder()
-                .ConfigureWebJobs(b =>
-                {
-                    b.AddAzureStorageQueues();
-                    b.AddAzureStorageBlobs();
-                })
-                .ConfigureLogging((context, b) =>
-                {
-                    b.AddConsole();
-                })
-                .ConfigureServices(services =>
-                {
-                    services.AddSingleton<IConfiguration>(config);
-                })
-                .Build();
+            var jobHostConfig = new JobHostConfiguration(webjobsConnectionString);
+            var host = new JobHost(jobHostConfig);
 
-            using (host)
-            {
-                await host.RunAsync();
-            }
+            host.RunAndBlock();
             return 0;
         }
     }

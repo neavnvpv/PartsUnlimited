@@ -6,18 +6,17 @@ using System.Linq;
 using Microsoft.Azure.WebJobs;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.Configuration.Json;
-using Azure.Storage.Queues;
+using Microsoft.WindowsAzure.Storage.Queue;
 using Newtonsoft.Json;
 using Newtonsoft.Json.Serialization;
 using PartsUnlimited.Models;
-using Microsoft.EntityFrameworkCore;
 
 namespace PartsUnlimited.WebJobs.ProcessOrder
 {
     public class Functions
     {
         [NoAutomaticTrigger]
-        public static void CreateOrderProcessTask([Queue("orders")] QueueClient orderQueue)
+        public static void CreateOrderProcessTask([Queue("orders")] CloudQueue orderQueue)
         {
             Console.WriteLine("Starting Create Order Process Task");
             try
@@ -27,9 +26,7 @@ namespace PartsUnlimited.WebJobs.ProcessOrder
                 var config = builder.Build();
                 var connectionString = config["Data:DefaultConnection:ConnectionString"];
 
-                var optionsBuilder = new Microsoft.EntityFrameworkCore.DbContextOptionsBuilder<PartsUnlimitedContext>();
-                optionsBuilder.UseSqlServer(connectionString);
-                using (var context = new PartsUnlimitedContext(optionsBuilder.Options))
+                using (var context = new PartsUnlimitedContext(connectionString))
                 {
                     var orders = context.Orders.Where(x => !x.Processed).ToList();
                     Console.WriteLine("Found {0} orders to process", orders.Count);
@@ -64,7 +61,7 @@ namespace PartsUnlimited.WebJobs.ProcessOrder
                         };
                         var settings = new JsonSerializerSettings { ContractResolver = new CamelCasePropertyNamesContractResolver() };
                         var message = JsonConvert.SerializeObject(queueOrder, settings);
-                        orderQueue.SendMessageAsync(message);
+                        orderQueue.AddMessageAsync(new CloudQueueMessage(message));
                         order.Processed = true;
                     }
                     context.SaveChanges();
